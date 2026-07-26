@@ -52,7 +52,8 @@ func TestSyncRepoAddsNewVersionsWithoutDeletingHistory(t *testing.T) {
 		},
 	}
 
-	service := NewService(store, fakeGitHub{}, fakeAnalyzer{})
+	github := &fakeGitHub{}
+	service := NewService(store, github, fakeAnalyzer{})
 	service.now = func() time.Time { return time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC) }
 
 	repo, err := service.SyncRepo(ctx, "openai", "codex")
@@ -67,6 +68,9 @@ func TestSyncRepoAddsNewVersionsWithoutDeletingHistory(t *testing.T) {
 	}
 	if repo.Description != "\u4e2d\u6587\u9879\u76ee\u7b80\u4ecb" {
 		t.Fatalf("description = %q", repo.Description)
+	}
+	if github.releaseLimit != domain.FetchVersions {
+		t.Fatalf("release limit = %d, want %d", github.releaseLimit, domain.FetchVersions)
 	}
 }
 
@@ -97,9 +101,11 @@ func (s *memoryStore) Save(_ context.Context, repo domain.Repository) error {
 	return nil
 }
 
-type fakeGitHub struct{}
+type fakeGitHub struct {
+	releaseLimit int
+}
 
-func (fakeGitHub) Repository(context.Context, string, string) (gh.RepositoryInfo, error) {
+func (*fakeGitHub) Repository(context.Context, string, string) (gh.RepositoryInfo, error) {
 	return gh.RepositoryInfo{
 		Owner:       "openai",
 		Name:        "codex",
@@ -108,11 +114,12 @@ func (fakeGitHub) Repository(context.Context, string, string) (gh.RepositoryInfo
 	}, nil
 }
 
-func (fakeGitHub) Readme(context.Context, string, string) (string, error) {
+func (*fakeGitHub) Readme(context.Context, string, string) (string, error) {
 	return "Run codex --version to verify installation.", nil
 }
 
-func (fakeGitHub) StableReleases(context.Context, string, string, int) ([]gh.Release, error) {
+func (g *fakeGitHub) StableReleases(_ context.Context, _ string, _ string, limit int) ([]gh.Release, error) {
+	g.releaseLimit = limit
 	return []gh.Release{
 		{
 			Tag:         "new-v2",
