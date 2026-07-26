@@ -1,0 +1,147 @@
+<title>Github Downloader — 开源工具下载</title>
+<link rel="icon" type="image/png" href="/assets/icon.png?v=issue-1-repo-url-routing">
+<link rel="apple-touch-icon" href="/assets/icon.png?v=issue-1-repo-url-routing">
+<link rel="stylesheet" href="/assets/style.css?v=issue-1-repo-url-routing">
+<link rel="stylesheet" href="/assets/components.css?v=issue-1-repo-url-routing">
+<link rel="stylesheet" href="/assets/responsive.css?v=issue-1-repo-url-routing">
+
+
+
+<header class="site">
+  <div class="inner">
+    <button class="logo logo-button" onclick="showList()" title="返回首页"><img class="brand-icon" src="/assets/icon.png?v=issue-1-repo-url-routing" alt=""><span>Github Downloader</span></button>
+    <span class="spacer"></span>
+    <input class="search" id="searchBox" placeholder="搜索已收录工具…" oninput="renderRepoList()">
+    <button class="btn btn-sm" onclick="openAdd()">添加仓库</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ==================== PAGE 0: repo index ==================== -->
+  <section id="page-list">
+    <div class="index-hero">
+      <h1>开源工具下载</h1>
+      <p class="lede">
+        直接从本站下载 GitHub 上的开源工具安装包，无需访问 GitHub。
+      </p>
+    </div>
+    <div class="panel index" id="repoList"></div>
+  </section>
+
+  <!-- ==================== PAGE A/B: repo detail ==================== -->
+  <section id="page-detail" class="hidden">
+    <div class="dbar">
+      <button class="dback" onclick="showList()" title="返回工具列表">←</button>
+      <a class="gh-link" id="dRepoLink" target="_blank" rel="noopener noreferrer">
+        <span id="dRepoName"></span><span class="ext" title="在 GitHub 上查看">↗</span>
+      </a>
+      <span class="tag" id="dVersion"></span>
+      <span class="ddesc muted" id="dDesc"></span>
+      <span class="spacer"></span>
+      <span class="dsync xs muted" id="dSynced"></span>
+      <button class="btn btn-sm" onclick="syncRepo()" id="syncBtn">检查更新</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" id="tabB" onclick="switchTab('B')">一键下载</button>
+      <button class="tab" id="tabA" onclick="switchTab('A')">全部文件</button>
+    </div>
+
+    <!-- shown on BOTH tabs when viewing a non-latest version -->
+    <div class="note hidden" id="oldVerBanner" style="margin-bottom:20px">
+      你正在查看历史版本。<button class="linklike" onclick="onVerChange(0)">切换到最新版本</button>
+    </div>
+
+    <!-- ---------- PAGE B: guided ---------- -->
+    <div id="viewB">
+      <div class="controls">
+        <span class="field-label">版本</span>
+        <select class="ver-select" id="verSelectB" onchange="onVerChange(this.value)"></select>
+        <span class="field-label">系统</span>
+        <div class="platform-badge">
+          <span class="dot" id="detectDot"></span>
+          <span id="platformMode">当前系统</span>
+          <select id="platformSelect" class="platform-select" onchange="onPlatformChange(this.value)"></select>
+        </div>
+      </div>
+
+      <div id="bNoAsset" class="panel empty hidden">
+        <div class="glyph">—</div>
+        <div style="font-weight:600" id="bNoAssetTitle"></div>
+        <p class="muted small" id="bNoAssetDesc" style="margin:10px 0 18px"></p>
+        <button class="btn btn-sm" onclick="switchTab('A')">查看全部文件</button>
+      </div>
+
+      <div id="bMain">
+        <h2>安装步骤</h2>
+        <div class="install-choicebar" id="installChoices"></div>
+        <div class="dl-hero hidden" id="assetDownloadPanel">
+          <div>
+            <button class="btn btn-primary btn-dl" onclick="downloadRecommended()">
+              下载 <span id="dlSize" class="num"></span>
+            </button>
+          </div>
+          <div class="dl-filename" id="dlFile"></div>
+        </div>
+        <p class="small muted install-intro" id="installIntro"></p>
+        <ol class="steps" id="installSteps"></ol>
+
+        <div id="verifyBlock">
+          <h2>验证安装</h2>
+          <div class="panel panel-p">
+            <p class="small muted" style="margin:0 0 6px" id="verifyIntro"></p>
+            <div class="cmd">
+              <button class="copy-btn" onclick="copyCmd(this,'verifyCmd')">复制</button>
+              <pre><code id="verifyCmd"></code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- PAGE A: full manifest ---------- -->
+    <div id="viewA" class="hidden">
+      <div class="controls">
+        <span class="field-label">版本</span>
+        <select class="ver-select" id="verSelect" onchange="onVerChange(this.value)"></select>
+        <span class="spacer"></span>
+        <button class="chip on" id="chipNoise" onclick="toggleNoise()">隐藏校验/签名文件</button>
+      </div>
+      <div class="panel">
+        <div class="table-scroll">
+          <table class="assets">
+            <thead><tr><th>文件名</th><th>适用平台</th><th>大小</th><th></th></tr></thead>
+            <tbody id="assetBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <p class="xs muted" id="assetCount" style="margin-top:12px"></p>
+    </div>
+  </section>
+</div>
+
+<!-- ==================== ADD REPO MODAL ==================== -->
+<div class="overlay" id="addOverlay" onclick="if(event.target===this)closeAdd()">
+  <div class="modal">
+    <h2 style="font-size:15px; letter-spacing:.06em">添加仓库</h2>
+    <p class="muted small" style="margin:0 0 12px">输入 GitHub 仓库地址，系统会拉取版本并分析产物。</p>
+    <input id="repoInput" placeholder="owner/repo">
+    <div class="prog" id="addProg">
+      <div class="prog-step" id="ps1">○ 拉取仓库信息</div>
+      <div class="prog-step" id="ps2">○ 获取版本与产物列表</div>
+      <div class="prog-step" id="ps3">○ AI 分析平台映射</div>
+      <div class="prog-step" id="ps4">○ 准备下载资源</div>
+    </div>
+    <p class="muted small" id="addStatus" style="margin:12px 0 0"></p>
+    <div class="row" style="margin-top:20px; justify-content:flex-end">
+      <button class="btn btn-sm" onclick="closeAdd()">关闭</button>
+      <button class="btn btn-sm btn-primary" id="addBtn" onclick="runAdd()">添加</button>
+    </div>
+  </div>
+</div>
+
+<script src="/assets/state.js?v=issue-1-repo-url-routing"></script>
+<script src="/assets/api.js?v=issue-1-repo-url-routing"></script>
+<script src="/assets/render.js?v=issue-1-repo-url-routing"></script>
+<script src="/assets/app.js?v=issue-1-repo-url-routing"></script>
