@@ -90,18 +90,82 @@ func TestNormalizeInstallMethodsPreservesUsageCommand(t *testing.T) {
 	}
 }
 
-func TestNormalizeInstallMethodsDropsRemoteScripts(t *testing.T) {
+func TestNormalizeInstallMethodsKeepsRemoteScripts(t *testing.T) {
 	got := normalizeInstallMethods([]installMethodJSON{{
 		Title:       "installer",
-		Manager:     "other",
+		Manager:     "remote_script",
 		Command:     "curl -fsSL https://example.test/install.sh | sh",
 		Platforms:   []string{"linux/x64"},
 		Source:      "readme",
 		Recommended: true,
 	}})
 
+	if len(got) != 1 {
+		t.Fatalf("len(methods) = %d, want 1", len(got))
+	}
+	if got[0].Manager != "remote_script" {
+		t.Fatalf("Manager = %q, want remote_script", got[0].Manager)
+	}
+}
+
+func TestNormalizeInstallMethodsClassifiesRemoteScripts(t *testing.T) {
+	got := normalizeInstallMethods([]installMethodJSON{{
+		Title:       "installer",
+		Manager:     "other",
+		Command:     "iex (irm https://example.test/install.ps1)",
+		Platforms:   []string{"win/x64"},
+		Source:      "readme",
+		Recommended: true,
+	}})
+
+	if len(got) != 1 {
+		t.Fatalf("len(methods) = %d, want 1", len(got))
+	}
+	if got[0].Manager != "remote_script" {
+		t.Fatalf("Manager = %q, want remote_script", got[0].Manager)
+	}
+}
+
+func TestNormalizeInstallMethodsDropsDevelopmentInstalls(t *testing.T) {
+	got := normalizeInstallMethods([]installMethodJSON{
+		{
+			Title:       "Development dependencies",
+			Manager:     "npm",
+			Command:     "npm install --ignore-scripts",
+			Platforms:   []string{"linux/x64"},
+			Source:      "readme",
+			Recommended: true,
+		},
+		{
+			Title:       "Editable development install",
+			Manager:     "other",
+			Command:     `uv pip install -e ".[all,dev]"`,
+			Platforms:   []string{"linux/x64"},
+			Source:      "readme",
+			Recommended: true,
+		},
+	})
+
 	if len(got) != 0 {
 		t.Fatalf("len(methods) = %d, want 0", len(got))
+	}
+}
+
+func TestNormalizeInstallMethodsKeepsEndUserPackageInstall(t *testing.T) {
+	got := normalizeInstallMethods([]installMethodJSON{{
+		Title:       "npm install",
+		Manager:     "npm",
+		Command:     "npm install -g @openai/codex",
+		Platforms:   []string{"linux/x64"},
+		Source:      "readme",
+		Recommended: true,
+	}})
+
+	if len(got) != 1 {
+		t.Fatalf("len(methods) = %d, want 1", len(got))
+	}
+	if got[0].Command != "npm install -g @openai/codex" {
+		t.Fatalf("Command = %q", got[0].Command)
 	}
 }
 

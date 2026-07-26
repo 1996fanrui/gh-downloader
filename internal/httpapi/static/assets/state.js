@@ -351,12 +351,17 @@ const MANAGER_PRIORITY = {
   nix: 150,
   guix: 160,
   macports: 170,
+  remote_script: 900,
   other: 1000
 };
 
 function sortedRecommendedMethods(methods, platform) {
-  return (methods || [])
-    .filter(method => method.command && methodAppliesToPlatform(method, platform))
+  const applicable = (methods || [])
+    .filter(method => method.command && methodAppliesToPlatform(method, platform));
+  const visible = applicable.some(method => method.manager !== 'remote_script')
+    ? applicable.filter(method => method.manager !== 'remote_script')
+    : applicable;
+  return visible
     .slice()
     .sort((a, b) => {
       const pa = MANAGER_PRIORITY[a.manager] || MANAGER_PRIORITY.other;
