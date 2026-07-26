@@ -177,7 +177,7 @@ func descriptionSystemPrompt() string {
 }
 
 func installMethodsSystemPrompt() string {
-	return "Extract project-level, version-independent package-manager install methods from the README. Return only JSON that matches the schema. Return README-backed candidates; do not rank them. Exclude remote script execution commands, including curl|sh, curl|bash, wget|sh, wget|bash, irm|iex, iwr|iex, or any command that pipes downloaded remote script text into a shell. Exclude manual GitHub Release download, extract, chmod, PATH, --version, and --help commands. Include only short package-manager install commands. Set manager to one of: npm, homebrew, cargo, pipx, winget, scoop, choco, apt, dnf, yum, pacman, zypper, apk, mise, nix, guix, macports, other. usage_command is an optional command the README explicitly says users can run after installation, including first use, launch, or verification. If README states a global usage command, repeat it for every install method unless a method-specific command is documented. Do not invent usage_command. Do not append --version or --help unless README uses that exact command. Use concise Simplified Chinese titles. Use platforms to mark where each command applies; use all six platforms for cross-platform commands such as npm. If README does not explicitly document any package-manager install command, return an empty methods array."
+	return "Extract project-level, version-independent install methods for end users from the README. Return only JSON that matches the schema. Return README-backed candidates; do not rank them. Exclude commands from Development, Contributing, build-from-source, package-maintainer, test, CI, or local repository setup sections. Exclude dependency/bootstrap commands such as npm install, npm ci, npm run build, uv pip install -e, pip install -e, or commands installing .[dev] extras. Include official remote installer scripts only when the README presents them as an end-user install path, and set manager to remote_script for curl|sh, curl|bash, wget|sh, wget|bash, irm|iex, iwr|iex, or equivalent commands that pipe downloaded remote script text into a shell. Exclude manual GitHub Release download, extract, chmod, PATH, --version, and --help commands. Include only short install commands that install the published product for a user. Set manager to one of: npm, homebrew, cargo, pipx, winget, scoop, choco, apt, dnf, yum, pacman, zypper, apk, mise, nix, guix, macports, remote_script, other. usage_command is an optional command the README explicitly says users can run after installation, including first use, launch, or verification. If README states a global usage command, repeat it for every install method unless a method-specific command is documented. Do not invent usage_command. Do not append --version or --help unless README uses that exact command. Use concise Simplified Chinese titles. Use platforms to mark where each command applies; use all six platforms for cross-platform commands such as npm. If README does not explicitly document any install command for end users, return an empty methods array."
 }
 
 func userPrompt(input Input) string {
@@ -300,7 +300,13 @@ func normalizeInstallMethods(values []installMethodJSON) []domain.InstallMethod 
 			continue
 		}
 		manager := normalizeManager(value.Manager)
-		if manager == "" || !commandMatchesManager(*command, manager) || isRemoteScriptCommand(*command) {
+		if manager == "" || isDevelopmentInstallCommand(*command) {
+			continue
+		}
+		if isRemoteScriptCommand(*command) {
+			manager = "remote_script"
+		}
+		if !commandMatchesManager(*command, manager) {
 			continue
 		}
 		key := title + "\x00" + *command
@@ -324,7 +330,7 @@ func normalizeInstallMethods(values []installMethodJSON) []domain.InstallMethod 
 func normalizeManager(value string) string {
 	manager := strings.ToLower(strings.TrimSpace(value))
 	switch manager {
-	case "npm", "homebrew", "cargo", "pipx", "winget", "scoop", "choco", "apt", "dnf", "yum", "pacman", "zypper", "apk", "mise", "nix", "guix", "macports", "other":
+	case "npm", "homebrew", "cargo", "pipx", "winget", "scoop", "choco", "apt", "dnf", "yum", "pacman", "zypper", "apk", "mise", "nix", "guix", "macports", "remote_script", "other":
 		return manager
 	default:
 		return ""
@@ -338,6 +344,8 @@ func commandMatchesManager(command string, manager string) bool {
 		return first == "brew"
 	case "macports":
 		return first == "port"
+	case "remote_script":
+		return isRemoteScriptCommand(command)
 	case "other":
 		return true
 	default:
@@ -346,8 +354,15 @@ func commandMatchesManager(command string, manager string) bool {
 }
 
 func firstCommandName(command string) string {
-	line := firstCommandLine(command)
-	fields := strings.Fields(line)
+	fields := commandFields(command)
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.ToLower(fields[0])
+}
+
+func commandFields(command string) []string {
+	fields := strings.Fields(firstCommandLine(command))
 	for len(fields) > 0 {
 		value := fields[0]
 		switch {
@@ -356,10 +371,10 @@ func firstCommandName(command string) string {
 		case strings.Contains(value, "=") && !strings.HasPrefix(value, "-"):
 			fields = fields[1:]
 		default:
-			return strings.ToLower(value)
+			return fields
 		}
 	}
-	return ""
+	return nil
 }
 
 func firstCommandLine(command string) string {
@@ -375,8 +390,11 @@ func firstCommandLine(command string) string {
 
 func isRemoteScriptCommand(command string) bool {
 	normalized := strings.ToLower(strings.Join(strings.Fields(command), " "))
+	if hasAnyRemoteDownloader(normalized) && hasPowerShellExpressionInvoker(normalized) {
+		return true
+	}
 	for _, pattern := range []string{
-		"curl ", "wget ", "irm ", "iwr ", "invoke-webrequest ", "invoke-restmethod ",
+		"curl ", "wget ",
 	} {
 		if !strings.Contains(normalized, pattern) {
 			continue
@@ -386,6 +404,90 @@ func isRemoteScriptCommand(command string) bool {
 			strings.Contains(normalized, "| zsh") ||
 			strings.Contains(normalized, "| iex") ||
 			strings.Contains(normalized, "invoke-expression") {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAnyRemoteDownloader(command string) bool {
+	for _, pattern := range []string{"curl ", "wget ", "irm ", "iwr ", "invoke-webrequest ", "invoke-restmethod "} {
+		if strings.Contains(command, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPowerShellExpressionInvoker(command string) bool {
+	return strings.Contains(command, "| iex") ||
+		strings.Contains(command, "iex ") ||
+		strings.Contains(command, "iex(") ||
+		strings.Contains(command, "invoke-expression")
+}
+
+func isDevelopmentInstallCommand(command string) bool {
+	fields := lowerCommandFields(command)
+	if len(fields) == 0 {
+		return false
+	}
+	return isNPMDependencyInstallCommand(fields) || isEditablePythonInstallCommand(fields)
+}
+
+func lowerCommandFields(command string) []string {
+	fields := commandFields(command)
+	for i, field := range fields {
+		fields[i] = strings.ToLower(strings.Trim(field, `"'`))
+	}
+	return fields
+}
+
+func isNPMDependencyInstallCommand(fields []string) bool {
+	if len(fields) < 2 || fields[0] != "npm" {
+		return false
+	}
+	if fields[1] == "ci" {
+		return true
+	}
+	if fields[1] != "install" && fields[1] != "i" {
+		return false
+	}
+
+	hasPackage := false
+	global := false
+	for _, field := range fields[2:] {
+		switch {
+		case field == "-g" || field == "--global":
+			global = true
+		case field == "--":
+			continue
+		case strings.HasPrefix(field, "-"):
+			continue
+		default:
+			hasPackage = true
+		}
+	}
+	return !global || !hasPackage
+}
+
+func isEditablePythonInstallCommand(fields []string) bool {
+	start := -1
+	switch {
+	case len(fields) >= 3 && fields[0] == "pip" && fields[1] == "install":
+		start = 2
+	case len(fields) >= 4 && fields[0] == "python" && fields[1] == "-m" && fields[2] == "pip" && fields[3] == "install":
+		start = 4
+	case len(fields) >= 4 && fields[0] == "uv" && fields[1] == "pip" && fields[2] == "install":
+		start = 3
+	default:
+		return false
+	}
+
+	for _, field := range fields[start:] {
+		if field == "-e" || field == "--editable" || field == "." || strings.HasPrefix(field, ".[") {
+			return true
+		}
+		if strings.Contains(field, "dev") && strings.Contains(field, "[") {
 			return true
 		}
 	}
@@ -590,7 +692,7 @@ func installMethodsResponseFormat() json.RawMessage {
             "additionalProperties": false,
             "properties": {
               "title": {"type": "string"},
-              "manager": {"type": "string", "enum": ["npm", "homebrew", "cargo", "pipx", "winget", "scoop", "choco", "apt", "dnf", "yum", "pacman", "zypper", "apk", "mise", "nix", "guix", "macports", "other"]},
+              "manager": {"type": "string", "enum": ["npm", "homebrew", "cargo", "pipx", "winget", "scoop", "choco", "apt", "dnf", "yum", "pacman", "zypper", "apk", "mise", "nix", "guix", "macports", "remote_script", "other"]},
               "command": {"type": "string"},
               "usage_command": {"anyOf": [{"type": "string"}, {"type": "null"}]},
               "platforms": {
