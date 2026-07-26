@@ -1,48 +1,36 @@
-# Download Architecture
+# 下载架构
 
-Github Downloader separates release selection from file delivery.
+Github Downloader 将 release 选择与文件分发拆开处理。
 
-The Go application owns repository sync, asset analysis, and download URL
-resolution. NGINX owns public request proxying and download response caching.
-The application does not call an NGINX API.
+Go 应用负责仓库同步、产物分析和下载 URL 解析。NGINX 负责对外代理请求和缓存下载响应。应用不会调用 NGINX API。
 
 ```mermaid
 flowchart LR
-    browser[Browser or downloader] --> nginx[NGINX container]
-    nginx --> app[Go application]
+    browser[浏览器或下载器] --> nginx[NGINX 容器]
+    nginx --> app[Go 应用]
     app --> github[GitHub Releases]
     app --> postgres[(Postgres)]
-    nginx --> cache[(NGINX download cache)]
+    nginx --> cache[(NGINX 下载缓存)]
 ```
 
-## Request Flow
+## 请求流程
 
-Regular page and API requests pass through NGINX to the Go application.
+普通页面和 API 请求会经过 NGINX 转发到 Go 应用。
 
-Download requests use stable `/dl/{owner}/{repo}/{tag}/{asset}` paths. The Go
-application resolves the path to a GitHub release asset and streams the asset on
-a cache miss. NGINX caches successful download responses by request URI.
+下载请求使用稳定的 `/dl/{owner}/{repo}/{tag}/{asset}` 路径。Go 应用把路径解析为 GitHub release asset；缓存未命中时，应用流式转发该文件。NGINX 按请求 URI 缓存成功的下载响应。
 
-For concurrent requests to the same cold download URL, NGINX uses
-`proxy_cache_lock` so one request reaches the Go application while the other
-requests wait for the cached response. After the cache is populated, later
-requests are served by NGINX without another GitHub download.
+当多个请求同时访问同一个尚未缓存的下载 URL 时，NGINX 通过 `proxy_cache_lock` 只放行一个请求到 Go 应用，其它请求等待缓存响应。缓存写入后，后续请求直接由 NGINX 返回，不再触发新的 GitHub 下载。
 
-The `X-Download-Cache` response header exposes the NGINX cache status. Expected
-values include `MISS`, `HIT`, and `BYPASS`.
+`X-Download-Cache` 响应头会暴露 NGINX 缓存状态，常见值包括 `MISS`、`HIT` 和 `BYPASS`。
 
-## Deployment Shape
+## 部署形态
 
-Docker Compose starts three runtime services:
+Docker Compose 启动三个运行时服务：
 
-- `nginx`: public HTTP entry point and download cache owner.
-- `app`: internal Go application on port `8080`.
-- `postgres`: repository and release metadata storage.
+- `nginx`：公开 HTTP 入口和下载缓存持有者。
+- `app`：内部 Go 应用，监听 `8080` 端口。
+- `postgres`：仓库和 release 元数据存储。
 
-`GH_DOWNLOADER_BIND` and `GH_DOWNLOADER_PORT` control the host address and port
-exposed by the NGINX service. The Go application is only exposed inside the
-Compose network.
+`GH_DOWNLOADER_BIND` 和 `GH_DOWNLOADER_PORT` 控制 NGINX 服务暴露到宿主机的地址和端口。Go 应用只暴露在 Compose 网络内部。
 
-Production TLS can still be terminated by a host-level reverse proxy. That
-proxy should forward traffic to the Compose NGINX port, not directly to the Go
-application.
+生产环境 TLS 仍可由宿主机级反向代理终止。该反向代理应把流量转发到 Compose NGINX 端口，而不是直接转发到 Go 应用。
