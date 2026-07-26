@@ -16,6 +16,10 @@ jobs:
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
       OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
       GH_DOWNLOADER_GITHUB_TOKEN: ${{ secrets.GH_DOWNLOADER_GITHUB_TOKEN }}
+      GH_DOWNLOADER_PORT: ${{ vars.GH_DOWNLOADER_PORT }}
+      GH_DOWNLOADER_BIND: 127.0.0.1
+      GH_DOWNLOADER_NGINX_CACHE_DIR: ~/.cache/gh-downloader/nginx
+      GH_DOWNLOADER_PUBLIC_URL: https://gh-downloader.com
 
     steps:
       - name: Checkout
