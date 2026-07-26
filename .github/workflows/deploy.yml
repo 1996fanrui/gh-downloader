@@ -1,0 +1,26 @@
+name: Deploy
+run-name: Deploy gh-downloader | ref=${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy gh-downloader
+    runs-on: [self-hosted, gh-downloader]
+    concurrency:
+      group: gh-downloader-deploy
+      cancel-in-progress: false
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      GH_DOWNLOADER_GITHUB_TOKEN: ${{ secrets.GH_DOWNLOADER_GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy with Docker Compose
+        shell: bash
+        run: bash scripts/deploy.sh
