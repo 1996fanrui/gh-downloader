@@ -23,4 +23,4 @@ repos:
       - id: lint-no-ignored-files
       - id: lint-shell-portability
       - id: lint-no-chinese
-        exclude: '(^|/)requirements(/|$)|(^|/)docs/zh(/|$)|(^|/)(AGENTS|CLAUDE)\.md$'
+        exclude: '(^|/)requirements(/|$)|(^|/)docs/zh(/|$)|(^|/)(AGENTS|CLAUDE|README)\.md$|^internal/httpapi/static/'
