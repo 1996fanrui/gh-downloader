@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-const FetchVersions = 5
+const FetchVersions = 3
 
 type Platform string
 
