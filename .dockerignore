@@ -1,0 +1,12 @@
+.git
+.agents
+.claude
+bin
+coverage.*
+data
+generated
+logs
+requirements
+vendor
+*.out
+*.test

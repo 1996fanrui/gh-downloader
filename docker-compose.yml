@@ -1,0 +1,44 @@
+services:
+  nginx:
+    image: nginx:stable-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${GH_DOWNLOADER_BIND:-127.0.0.1}:${GH_DOWNLOADER_PORT:-8080}:8080"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - "${GH_DOWNLOADER_NGINX_CACHE_DIR:-./.data/nginx-cache}:/var/cache/nginx/gh-downloader"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://gh_downloader:gh_downloader@postgres:5432/gh_downloader?sslmode=disable
+      GH_DOWNLOADER_GITHUB_TOKEN: ${GH_DOWNLOADER_GITHUB_TOKEN:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+    expose:
+      - "8080"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gh_downloader
+      POSTGRES_USER: gh_downloader
+      POSTGRES_PASSWORD: gh_downloader
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gh_downloader -d gh_downloader"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:
