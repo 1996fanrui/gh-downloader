@@ -2,7 +2,7 @@
 
 Github Downloader 是一个 GitHub Release 安装包下载入口：即使本地访问 GitHub 不稳定，也可以通过本站代理获取 release 文件。
 
-只需打开 https://gh-downloader.com，输入仓库地址，Github Downloader 会自动识别用户的操作系统和架构，选出最合适的安装包和安装步骤，比如 Windows 的 `.exe`/`.msi`、MacBook 的 Intel 或 Apple Silicon 版本、Linux 的 AppImage 或压缩包。
+只需打开 https://gh-downloader.com ，输入仓库地址，Github Downloader 会自动识别用户的操作系统和架构，选出最合适的安装包和安装步骤，比如 Windows 的 `.exe`/`.msi`、MacBook 的 Intel 或 Apple Silicon 版本、Linux 的 AppImage 或压缩包。
 
 用户不用手动挑文件、查命令，也不用在 GitHub 下载失败或速度慢时反复重试。
 
